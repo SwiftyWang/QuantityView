@@ -8,11 +8,15 @@ import android.graphics.drawable.Drawable;
 import android.os.Build;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AlertDialog;
+import android.text.Editable;
+import android.text.TextUtils;
+import android.text.TextWatcher;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
+import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.EditText;
@@ -31,13 +35,13 @@ public class QuantityView extends LinearLayout implements View.OnClickListener {
 
     private int quantity;
     private boolean quantityDialog;
-    private int maxQuantity = Integer.MAX_VALUE, minQuantity = Integer.MAX_VALUE;
+    private int maxQuantity = Integer.MAX_VALUE, minQuantity = Integer.MIN_VALUE;
     private int quantityPadding;
 
     private int quantityTextColor, addButtonTextColor, removeButtonTextColor;
 
     private Button mButtonAdd, mButtonRemove;
-    private TextView mTextViewQuantity;
+    private EditText mTextViewQuantity;
 
     private String labelDialogTitle = "Change Quantity";
     private String labelPositiveButton = "Change";
@@ -129,8 +133,48 @@ public class QuantityView extends LinearLayout implements View.OnClickListener {
         setRemoveButtonText(removeButtonText);
         setRemoveButtonTextColor(removeButtonTextColor);
 
-        mTextViewQuantity = new TextView(getContext());
+        mTextViewQuantity = new EditText(getContext());
+        mTextViewQuantity.setInputType(EditorInfo.TYPE_CLASS_NUMBER);
         mTextViewQuantity.setGravity(Gravity.CENTER);
+        mTextViewQuantity.setCursorVisible(false);
+        mTextViewQuantity.setSelectAllOnFocus(true);
+        mTextViewQuantity.setBackgroundColor(0);
+        mTextViewQuantity.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                if (TextUtils.isEmpty(s)) {
+                    mTextViewQuantity.setText(String.valueOf(minQuantity));
+                }
+                try {
+                    Integer number = Integer.valueOf(s.toString());
+                    if (number < minQuantity) {
+                        mTextViewQuantity.setText(String.valueOf(minQuantity));
+                        if (onQuantityChangeListener != null) onQuantityChangeListener.onLimitReached();
+                    } else if (number > maxQuantity) {
+                        mTextViewQuantity.setText(String.valueOf(maxQuantity));
+                        if (onQuantityChangeListener != null) onQuantityChangeListener.onLimitReached();
+                    } else {
+                        if (!number.toString().equals(s.toString())) {
+                            mTextViewQuantity.setText(String.valueOf(number));
+                        }
+                        QuantityView.this.quantity = number;
+                        if (onQuantityChangeListener != null) {
+                            onQuantityChangeListener.onQuantityChanged(quantity, number, true);
+                        }
+                    }
+                } catch (NumberFormatException e) {
+                    Log.d(VIEW_LOG_TAG, e.toString(), e);
+                }
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {
+            }
+        });
         setQuantityTextColor(quantityTextColor);
         setQuantity(quantity);
         setQuantityBackground(quantityBackground);
@@ -305,9 +349,9 @@ public class QuantityView extends LinearLayout implements View.OnClickListener {
             limitReached = true;
         }
         if (!limitReached) {
-//            if (onQuantityChangeListener != null) {
-//                onQuantityChangeListener.onQuantityChanged(quantity, newQuantity, true);
-//            }
+            if (onQuantityChangeListener != null) {
+                onQuantityChangeListener.onQuantityChanged(quantity, newQuantity, true);
+            }
             this.quantity = newQuantity;
             mTextViewQuantity.setText(String.valueOf(this.quantity));
         } else {
